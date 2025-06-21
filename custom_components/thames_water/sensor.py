@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
+import async_timeout
 from operator import itemgetter
 import random
 
@@ -131,27 +132,29 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
         cost_stat_id = f"{DOMAIN}:thameswater_cost"
 
         try:
-            # Look up the most recent statistics data.
-            last_stats = await get_instance(self.hass).async_add_executor_job(
-                get_last_statistics, self.hass, 1, consumption_stat_id, True, {"sum"}
-            )
-            last_cost_stats = await get_instance(self.hass).async_add_executor_job(
-                get_last_statistics, self.hass, 1, cost_stat_id, True, {"sum"}
-            )
+            async with async_timeout.timeout(5):  # seconds
+                last_stats = await get_instance(self.hass).async_add_executor_job(
+                    get_last_statistics, self.hass, 1, consumption_stat_id, True, {"sum"}
+                )
+            async with async_timeout.timeout(5):
+                last_cost_stats = await get_instance(self.hass).async_add_executor_job(
+                    get_last_statistics, self.hass, 1, cost_stat_id, True, {"sum"}
+                )
             # If a previous value exists, use its "sum" as the starting cumulative.
             if len(last_stats.get(consumption_stat_id, [])) > 0:
                 last_stats = last_stats[consumption_stat_id]
-                last_stats = sorted(last_stats, key=itemgetter("start"), reverse=False)[
-                    0
-                ]
+                last_stats = sorted(last_stats, key=itemgetter("start"), reverse=False)[0]
             # If a previous value exists, use its "sum" as the starting cumulative.
             if len(last_cost_stats.get(cost_stat_id, [])) > 0:
                 last_cost_stats = last_cost_stats[cost_stat_id]
-                last_cost_stats = sorted(
-                    last_cost_stats, key=itemgetter("start"), reverse=False
-                )[0]
+                last_cost_stats = sorted(last_cost_stats, key=itemgetter("start"), reverse=False)[0]
+
         except AttributeError:
             last_stats = None
+        except asyncio.TimeoutError:
+            _LOGGER.warning("Timeout while fetching last statistics for Thames Water integration")
+            last_stats = None
+            last_cost_stats = None
 
         # Data is available from at least 3 days ago.
         end_dt = datetime.now() - timedelta(days=3)
