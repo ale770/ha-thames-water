@@ -221,14 +221,21 @@ class ThamesWater:
             "Referer": "https://myaccount.thameswater.co.uk/twservice/Account/SignIn?useremail=",
         }
 
-        self.s.get("https://myaccount.thameswater.co.uk/mydashboard")
-        self.s.get(
-            f"https://myaccount.thameswater.co.uk/mydashboard/my-meters-usage?contractAccountNumber={self.account_number}"
+        r = self.s.get("https://myaccount.thameswater.co.uk/mydashboard", headers=headers)
+        r.raise_for_status()
+
+        r = self.s.get(
+            f"https://myaccount.thameswater.co.uk/mydashboard/my-meters-usage?contractAccountNumber={self.account_number}",
+            headers=headers,
         )
+        r.raise_for_status()
+
         r = self.s.get(
             "https://myaccount.thameswater.co.uk/twservice/Account/SignIn?useremail=",
             headers=headers,
         )
+        r.raise_for_status()
+        
         state = r.url.split("&state=")[1].split("&nonce=")[0].replace("%3d", "=")
         id_token = r.text.split("id='id_token' value='")[1].split("'/>")[0]
         self.s.get(r.url)
