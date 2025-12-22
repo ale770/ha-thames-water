@@ -209,6 +209,7 @@ class ThamesWater:
         email: str,
         password: str,
     ):
+        _LOGGER.info("Starting authentication for account %s", self.account_number)
         try:
             self._generate_pkce()
             trans_token, csrf_token = self._authorize_b2c_1_tw_website_signin()
@@ -248,6 +249,7 @@ class ThamesWater:
             self.s.get(r.url, timeout=30)
             self._login(state, id_token)
             self.s.cookies.set(name="b2cAuthenticated", value="true")
+            _LOGGER.info("Authentication successful for account %s", self.account_number)
         except requests.RequestException as e:
             _LOGGER.error("Authentication failed: %s", e)
             raise
@@ -262,6 +264,7 @@ class ThamesWater:
         end: datetime.datetime,
         granularity: Literal["H", "D", "M"] = "H",
     ) -> MeterUsage:
+        _LOGGER.info("Fetching meter usage for meter %s from %s to %s", meter, start.date(), end.date())
         url = "https://myaccount.thameswater.co.uk/ajax/waterMeter/getSmartWaterMeterConsumptions"
 
         params = {
@@ -289,7 +292,9 @@ class ThamesWater:
 
             data = r.json()
             data["Lines"] = [Line(**line) for line in data["Lines"]]
-            return MeterUsage(**data)
+            result = MeterUsage(**data)
+            _LOGGER.info("Retrieved %d readings for meter %s", len(result.Lines), meter)
+            return result
         except requests.RequestException as e:
             _LOGGER.error("Failed to get meter usage: %s", e)
             raise
