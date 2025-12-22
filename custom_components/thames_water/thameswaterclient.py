@@ -2,11 +2,15 @@ import base64
 from dataclasses import dataclass, field
 import datetime
 import hashlib
+import logging
 import os
 from typing import Literal, Optional
 import uuid
 
 import requests
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -40,7 +44,7 @@ class MeterUsage:
 
 @dataclass
 class Measurement:
-    hour_start: datetime
+    hour_start: datetime.datetime
     usage: int  # Usage
     total: int  # Read
 
@@ -86,7 +90,7 @@ class ThamesWater:
             "state": str(uuid.uuid4()),
         }
 
-        r = self.s.get(url, params=params)
+        r = self.s.get(url, params=params, timeout=30)
         r.raise_for_status()
         return dict(self.s.cookies)["x-ms-cpim-trans"], dict(self.s.cookies)[
             "x-ms-cpim-csrf"
@@ -109,7 +113,7 @@ class ThamesWater:
             "x-csrf-token": csrf_token,
         }
 
-        r = self.s.post(url, params=params, data=data, headers=headers)
+        r = self.s.post(url, params=params, data=data, headers=headers, timeout=30)
         r.raise_for_status()
 
     def _confirmed_b2c_1_tw_website_signin(self, trans_token: str, csrf_token: str):
@@ -126,7 +130,7 @@ class ThamesWater:
             "p": "B2C_1_tw_website_signin",
         }
 
-        r = self.s.get(url, headers=headers, params=params)
+        r = self.s.get(url, headers=headers, params=params, timeout=30)
         r.raise_for_status()
 
         confirmed_signup_structured_response = {
@@ -158,7 +162,7 @@ class ThamesWater:
             "code": confirmation_code,
         }
 
-        r = self.s.post(url, headers=headers, data=data)
+        r = self.s.post(url, headers=headers, data=data, timeout=30)
         r.raise_for_status()
         self.oauth_request_tokens = r.json()
 
@@ -180,7 +184,7 @@ class ThamesWater:
 
         headers = {"content-type": "application/x-www-form-urlencoded;charset=utf-8"}
 
-        r = self.s.get(url, headers=headers, data=data)
+        r = self.s.get(url, headers=headers, data=data, timeout=30)
         r.raise_for_status()
         self.oauth_response_tokens = r.json()
 
@@ -197,7 +201,7 @@ class ThamesWater:
             "content-type": "application/x-www-form-urlencoded",
         }
 
-        r = self.s.post(url, data=data, headers=headers)
+        r = self.s.post(url, data=data, headers=headers, timeout=30)
         r.raise_for_status()
 
     def _authenticate(
@@ -205,42 +209,51 @@ class ThamesWater:
         email: str,
         password: str,
     ):
-        self._generate_pkce()
-        trans_token, csrf_token = self._authorize_b2c_1_tw_website_signin()
-        self._self_asserted_b2c_1_tw_website_signin(
-            email, password, trans_token, csrf_token
-        )
-        confirmation_code = self._confirmed_b2c_1_tw_website_signin(
-            trans_token, csrf_token
-        )
-        self._get_oauth2_code_b2c_1_tw_website_signin(confirmation_code)
-        self._refresh_oauth2_token_b2c_1_tw_website_signin()
+        try:
+            self._generate_pkce()
+            trans_token, csrf_token = self._authorize_b2c_1_tw_website_signin()
+            self._self_asserted_b2c_1_tw_website_signin(
+                email, password, trans_token, csrf_token
+            )
+            confirmation_code = self._confirmed_b2c_1_tw_website_signin(
+                trans_token, csrf_token
+            )
+            self._get_oauth2_code_b2c_1_tw_website_signin(confirmation_code)
+            self._refresh_oauth2_token_b2c_1_tw_website_signin()
 
-        headers = {
-            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
-            "Referer": "https://myaccount.thameswater.co.uk/twservice/Account/SignIn?useremail=",
-        }
+            headers = {
+                "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+                "Referer": "https://myaccount.thameswater.co.uk/twservice/Account/SignIn?useremail=",
+            }
 
-        r = self.s.get("https://myaccount.thameswater.co.uk/mydashboard", headers=headers)
-        r.raise_for_status()
+            r = self.s.get("https://myaccount.thameswater.co.uk/mydashboard", headers=headers, timeout=30)
+            r.raise_for_status()
 
-        r = self.s.get(
-            f"https://myaccount.thameswater.co.uk/mydashboard/my-meters-usage?contractAccountNumber={self.account_number}",
-            headers=headers,
-        )
-        r.raise_for_status()
+            r = self.s.get(
+                f"https://myaccount.thameswater.co.uk/mydashboard/my-meters-usage?contractAccountNumber={self.account_number}",
+                headers=headers,
+                timeout=30,
+            )
+            r.raise_for_status()
 
-        r = self.s.get(
-            "https://myaccount.thameswater.co.uk/twservice/Account/SignIn?useremail=",
-            headers=headers,
-        )
-        r.raise_for_status()
-        
-        state = r.url.split("&state=")[1].split("&nonce=")[0].replace("%3d", "=")
-        id_token = r.text.split("id='id_token' value='")[1].split("'/>")[0]
-        self.s.get(r.url)
-        self._login(state, id_token)
-        self.s.cookies.set(name="b2cAuthenticated", value="true")
+            r = self.s.get(
+                "https://myaccount.thameswater.co.uk/twservice/Account/SignIn?useremail=",
+                headers=headers,
+                timeout=30,
+            )
+            r.raise_for_status()
+            
+            state = r.url.split("&state=")[1].split("&nonce=")[0].replace("%3d", "=")
+            id_token = r.text.split("id='id_token' value='")[1].split("'/>")[0]
+            self.s.get(r.url, timeout=30)
+            self._login(state, id_token)
+            self.s.cookies.set(name="b2cAuthenticated", value="true")
+        except requests.RequestException as e:
+            _LOGGER.error("Authentication failed: %s", e)
+            raise
+        except (KeyError, IndexError) as e:
+            _LOGGER.error("Failed to parse authentication response: %s", e)
+            raise
 
     def get_meter_usage(
         self,
@@ -259,7 +272,7 @@ class ThamesWater:
             "endDate": end.day,
             "endMonth": end.month,
             "endYear": end.year,
-            "granularity": "H",
+            "granularity": granularity,
             "premiseId": "",
             "isForC4C": "false",
         }
@@ -270,9 +283,16 @@ class ThamesWater:
             "X-Requested-With": "XMLHttpRequest",
         }
 
-        r = self.s.get(url, params=params, headers=headers)
-        r.raise_for_status()
+        try:
+            r = self.s.get(url, params=params, headers=headers, timeout=30)
+            r.raise_for_status()
 
-        data = r.json()
-        data["Lines"] = [Line(**line) for line in data["Lines"]]
-        return MeterUsage(**data)
+            data = r.json()
+            data["Lines"] = [Line(**line) for line in data["Lines"]]
+            return MeterUsage(**data)
+        except requests.RequestException as e:
+            _LOGGER.error("Failed to get meter usage: %s", e)
+            raise
+        except (KeyError, ValueError) as e:
+            _LOGGER.error("Failed to parse meter usage response: %s", e)
+            raise

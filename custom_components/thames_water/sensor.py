@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
-import async_timeout
+import asyncio
 from operator import itemgetter
 import random
 
@@ -30,7 +30,7 @@ from .entity import ThamesWaterEntity
 from .thameswaterclient import ThamesWater
 
 _LOGGER = logging.getLogger(__name__)
-UPDATE_HOURS = [15,23]
+UPDATE_HOURS = [15, 23]
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities
@@ -44,7 +44,11 @@ async def async_setup_entry(
     async_add_entities([sensor], update_before_add=True)
 
     if "fetch_hours" in entry.data and entry.data["fetch_hours"]:
-        update_hours = entry.data["fetch_hours"].split(",")
+        try:
+            update_hours = [int(h.strip()) for h in entry.data["fetch_hours"].split(",")]
+        except (ValueError, AttributeError):
+            _LOGGER.warning("Invalid fetch_hours configuration, using defaults")
+            update_hours = UPDATE_HOURS
     else:
         update_hours = UPDATE_HOURS
 
@@ -61,9 +65,9 @@ async def async_setup_entry(
 
 
 def _generate_statistics_from_readings(
-    readings: list[tuple[datetime, float]],
+    readings: list[dict],
     cumulative_start: float = 0.0,
-    liter_cost: float = None,
+    liter_cost: float | None = None,
 ) -> list[StatisticData]:
     """Convert a list of (datetime, reading) entries into StatisticData entries."""
     sorted_readings = sorted(readings, key=lambda x: x["dt"])
@@ -109,7 +113,6 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
         self._password = config_entry.data["password"]
         self._account_number = config_entry.data["account_number"]
         self._meter_id = config_entry.data["meter_id"]
-        self._cookies_dict = None
 
         self._attr_unique_id = f"water_usage_{self._meter_id}"
         self._attr_should_poll = False
@@ -130,15 +133,19 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
         consumption_stat_id = f"{DOMAIN}:thameswater_consumption"
         cost_stat_id = f"{DOMAIN}:thameswater_cost"
 
+        last_stats = None
+        last_cost_stats = None
+
         try:
-            async with async_timeout.timeout(5):  # seconds
+            async with asyncio.timeout(30):
                 last_stats = await get_instance(self.hass).async_add_executor_job(
                     get_last_statistics, self.hass, 1, consumption_stat_id, True, {"sum"}
                 )
-            async with async_timeout.timeout(5):
+            async with asyncio.timeout(30):
                 last_cost_stats = await get_instance(self.hass).async_add_executor_job(
                     get_last_statistics, self.hass, 1, cost_stat_id, True, {"sum"}
                 )
+
             # If a previous value exists, use its "sum" as the starting cumulative.
             if len(last_stats.get(consumption_stat_id, [])) > 0:
                 last_stats = last_stats[consumption_stat_id]
@@ -148,10 +155,12 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                 last_cost_stats = last_cost_stats[cost_stat_id]
                 last_cost_stats = sorted(last_cost_stats, key=itemgetter("start"), reverse=False)[0]
 
-        except AttributeError:
-            last_stats = None
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _LOGGER.warning("Timeout while fetching last statistics for Thames Water integration")
+            last_stats = None
+            last_cost_stats = None
+        except (AttributeError, Exception) as err:
+            _LOGGER.error("Error fetching last statistics: %s", err)
             last_stats = None
             last_cost_stats = None
 
@@ -180,6 +189,7 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
         # readings holds all hourly data for the entire period.
         readings: list[dict] = []
         latest_usage = 0
+
         while current_date <= end_date:
             year = current_date.year
             month = current_date.month
@@ -188,6 +198,7 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
 
             d = datetime(year, month, day)
             _LOGGER.debug("Fetching data for %s/%s/%s", day, month, year)
+
             try:
                 data = await self._hass.async_add_executor_job(
                     tw_client.get_meter_usage,
@@ -195,11 +206,9 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                     d,
                     d,
                 )
-            except (
-                Exception
-            ):  # If data is not yet available, it will raise an exception.
+            except Exception as err:
                 data = None
-                _LOGGER.warning("Could not get data for %s/%s/%s", day, month, year)
+                _LOGGER.warning("Could not get data for %s/%s/%s: %s", day, month, year, err)
 
             if (
                 data is None
@@ -218,9 +227,10 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                 latest_usage += usage
                 try:
                     hour, minute = map(int, time_str.split(":"))
-                except Exception as err:
+                except (ValueError, AttributeError) as err:
                     _LOGGER.error("Error parsing time %s: %s", time_str, err)
                     continue
+
                 naive_datetime = datetime(year, month, day, hour, minute)
                 readings.append(
                     {
@@ -230,17 +240,12 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                 )
 
         _LOGGER.info("Fetched %d historical entries", len(readings))
-        # Clear temporary cookies.
-        self._cookies_dict = None
 
         liter_cost = self._config_entry.options.get(
             "liter_cost", self._config_entry.data.get("liter_cost")
         )
 
-        _LOGGER.debug(
-            "Using Liter Cost: %s",
-            liter_cost,
-        )
+        _LOGGER.debug("Using Liter Cost: %s", liter_cost)
         if liter_cost is None:
             liter_cost = 0
 
