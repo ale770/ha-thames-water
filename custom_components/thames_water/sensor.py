@@ -9,7 +9,7 @@ from operator import itemgetter
 import random
 
 from homeassistant.components.recorder import get_instance
-from homeassistant.components.recorder.models import StatisticData, StatisticMetaData
+from homeassistant.components.recorder.models import StatisticData, StatisticMetaData, StatisticMeanType
 from homeassistant.components.recorder.statistics import (
     async_add_external_statistics,
     get_last_statistics,
@@ -286,6 +286,7 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
             source=DOMAIN,
             statistic_id=consumption_stat_id,
             unit_of_measurement=UnitOfVolume.LITERS,
+            mean_type=StatisticMeanType.NONE,
         )
         metadata_cost = StatisticMetaData(
             has_mean=False,
@@ -294,6 +295,7 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
             source=DOMAIN,
             statistic_id=cost_stat_id,
             unit_of_measurement="GBP",
+            mean_type=StatisticMeanType.NONE,
         )
         async_add_external_statistics(self._hass, metadata_consumption, stats)
         async_add_external_statistics(self._hass, metadata_cost, cost_stats)
