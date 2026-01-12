@@ -287,6 +287,7 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
             statistic_id=consumption_stat_id,
             unit_of_measurement=UnitOfVolume.LITERS,
             mean_type=StatisticMeanType.NONE,
+            unit_class="volume",
         )
         metadata_cost = StatisticMetaData(
             has_mean=False,
@@ -296,6 +297,7 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
             statistic_id=cost_stat_id,
             unit_of_measurement="GBP",
             mean_type=StatisticMeanType.NONE,
+            unit_class=None,
         )
         async_add_external_statistics(self._hass, metadata_consumption, stats)
         async_add_external_statistics(self._hass, metadata_cost, cost_stats)
