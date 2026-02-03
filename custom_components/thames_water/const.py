@@ -1,1 +1,2 @@
 DOMAIN = "thames_water"
+DEFAULT_LITER_COST = 0.0030682

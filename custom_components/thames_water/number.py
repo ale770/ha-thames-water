@@ -7,6 +7,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .entity import ThamesWaterEntity
+from .const import DEFAULT_LITER_COST
 
 
 async def async_setup_entry(
@@ -15,8 +16,8 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the number entities for Thames Water."""
-    # Get values first from options, falling back to entry.data.
-    liter_cost = entry.options.get("liter_cost", entry.data.get("liter_cost"))
+    # Get values first from options, falling back to entry.data, then to default
+    liter_cost = entry.options.get("liter_cost") or entry.data.get("liter_cost") or DEFAULT_LITER_COST
 
     entities = [
         ThamesWaterLiterCost(entry, initial_value=liter_cost),
@@ -39,12 +40,15 @@ class ThamesWaterLiterCost(ThamesWaterEntity, NumberEntity):
     def __init__(
         self,
         config_entry: ConfigEntry,
-        initial_value: float = 0.0,
+        initial_value: float | None = None,
     ) -> None:
         """Initialize the Thames Water Liter Cost number entity."""
         self._config_entry = config_entry
-        # Save the value as a float.
-        self._value = float(initial_value)
+        # Handle None value, use default if not provided
+        if initial_value is None:
+            self._value = DEFAULT_LITER_COST
+        else:
+            self._value = float(initial_value)
         self._attr_unique_id = f"{config_entry.entry_id}_liter_cost"
 
     @property

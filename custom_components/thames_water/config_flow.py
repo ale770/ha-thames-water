@@ -4,7 +4,7 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from typing import Any, Dict, List
 
-from .const import DOMAIN
+from .const import DOMAIN, DEFAULT_LITER_COST
 
 
 class ThamesWaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -87,7 +87,7 @@ class ThamesWaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ): str,
                 vol.Required("meter_id", default=defaults.get("meter_id", "")): str,
                 vol.Required(
-                    "liter_cost", default=defaults.get("liter_cost", "0.0030682")
+                    "liter_cost", default=str(defaults.get("liter_cost", DEFAULT_LITER_COST))
                 ): str,
                 vol.Optional(
                     "fetch_hours", default=defaults.get("fetch_hours", "15,23")

@@ -24,8 +24,9 @@ from homeassistant.const import UnitOfVolume
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.util import dt as dt_util
+from homeassistant.exceptions import ConfigEntryNotReady
 
-from .const import DOMAIN
+from .const import DOMAIN, DEFAULT_LITER_COST
 from .entity import ThamesWaterEntity
 from .thameswaterclient import ThamesWater
 
@@ -109,10 +110,39 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
         self._config_entry = config_entry
         self._state: float | None = None
 
-        self._username = config_entry.data["username"]
-        self._password = config_entry.data["password"]
-        self._account_number = config_entry.data["account_number"]
-        self._meter_id = config_entry.data["meter_id"]
+        self._username = config_entry.data.get("username")
+        self._password = config_entry.data.get("password")
+        self._account_number = config_entry.data.get("account_number")
+        self._meter_id = config_entry.data.get("meter_id")
+
+        # Validate required fields and log errors
+        if not self._username:
+            _LOGGER.error(
+                "Username not found in config entry data. Available keys: %s",
+                list(config_entry.data.keys())
+            )
+            raise ConfigEntryNotReady("Username not configured. Please remove and re-add the integration.")
+        
+        if not self._password:
+            _LOGGER.error(
+                "Password not found in config entry data. Available keys: %s",
+                list(config_entry.data.keys())
+            )
+            raise ConfigEntryNotReady("Password not configured. Please remove and re-add the integration.")
+        
+        if not self._account_number:
+            _LOGGER.error(
+                "Account number not found in config entry data. Available keys: %s",
+                list(config_entry.data.keys())
+            )
+            raise ConfigEntryNotReady("Account number not configured. Please remove and re-add the integration.")
+        
+        if not self._meter_id:
+            _LOGGER.error(
+                "Meter ID not found in config entry data. Available keys: %s",
+                list(config_entry.data.keys())
+            )
+            raise ConfigEntryNotReady("Meter ID not configured. Please remove and re-add the integration.")
 
         self._attr_unique_id = f"water_usage_{self._meter_id}"
         self._attr_should_poll = False
@@ -242,12 +272,10 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
         _LOGGER.info("Fetched %d historical entries", len(readings))
 
         liter_cost = self._config_entry.options.get(
-            "liter_cost", self._config_entry.data.get("liter_cost")
+            "liter_cost", self._config_entry.data.get("liter_cost", DEFAULT_LITER_COST)
         )
 
         _LOGGER.debug("Using Liter Cost: %s", liter_cost)
-        if liter_cost is None:
-            liter_cost = 0
 
         if last_stats is not None and last_stats.get("sum") is not None:
             initial_cumulative = last_stats["sum"]
