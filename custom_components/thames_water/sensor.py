@@ -281,6 +281,18 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
             initial_cumulative = last_stats["sum"]
             # Discard all readings before last_stats["start"].
             start_ts = dt_util.as_utc(datetime.fromtimestamp(last_stats.get("start")))
+            
+            try:
+                # Attempt to restore state if None.
+                if self._state is None and len(readings) > 0:
+                    last_recorded_date = start_ts.date() - timedelta(days=1) if start_ts.hour == 0 else start_ts.date()
+                    daily_total = sum(r["state"] for r in readings if r["dt"].date() == last_recorded_date)
+                    if daily_total > 0:
+                        self._state = daily_total
+                        _LOGGER.debug("Restored state from last recorded day %s: %s L", last_recorded_date, self._state)
+            except Exception as err:
+                _LOGGER.error("Failed to restore state from last recorded day: %s", err)
+            
             readings = [r for r in readings if dt_util.as_utc(r["dt"]) > start_ts]
         else:
             initial_cumulative = 0.0
