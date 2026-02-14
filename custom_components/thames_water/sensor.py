@@ -206,12 +206,19 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
 
         try:
             _LOGGER.debug("Creating Thames Water Client")
-            tw_client = await self._hass.async_add_executor_job(
-                ThamesWater,
-                self._username,
-                self._password,
-                self._account_number,
-            )
+            async with asyncio.timeout(120):
+                tw_client = await self._hass.async_add_executor_job(
+                    ThamesWater,
+                    self._username,
+                    self._password,
+                    self._account_number,
+                )
+        except asyncio.TimeoutError:
+            _LOGGER.error("Timeout creating Thames Water client")
+            return
+        except asyncio.CancelledError:
+            _LOGGER.warning("Thames Water client creation was cancelled")
+            raise
         except Exception as err:
             _LOGGER.error("Error creating Thames Water client: %s", err)
             return
@@ -230,16 +237,19 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
             _LOGGER.debug("Fetching data for %s/%s/%s", day, month, year)
 
             try:
-                data = await self._hass.async_add_executor_job(
-                    tw_client.get_meter_usage,
-                    self._meter_id,
-                    d,
-                    d,
-                )
+                async with asyncio.timeout(30):
+                    data = await self._hass.async_add_executor_job(
+                        tw_client.get_meter_usage,
+                        self._meter_id,
+                        d,
+                        d,
+                    )
+            except asyncio.TimeoutError:
+                _LOGGER.warning("Timeout fetching data for %s/%s/%s", day, month, year)
+                data = None
             except Exception as err:
                 data = None
                 _LOGGER.warning("Could not get data for %s/%s/%s: %s", day, month, year, err)
-
             if (
                 data is None
                 or data.Lines is None
@@ -339,5 +349,10 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
             mean_type=StatisticMeanType.NONE,
             unit_class=None,
         )
-        async_add_external_statistics(self._hass, metadata_consumption, stats)
-        async_add_external_statistics(self._hass, metadata_cost, cost_stats)
+        try:
+            async with asyncio.timeout(30):
+                async_add_external_statistics(self._hass, metadata_consumption, stats)
+                async_add_external_statistics(self._hass, metadata_cost, cost_stats)
+        except asyncio.TimeoutError:
+            _LOGGER.error("Timeout writing statistics to database")
+            raise
