@@ -246,20 +246,29 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                     )
             except asyncio.TimeoutError:
                 _LOGGER.warning("Timeout fetching data for %s/%s/%s", day, month, year)
-                data = None
+                break
             except Exception as err:
-                data = None
                 _LOGGER.warning("Could not get data for %s/%s/%s: %s", day, month, year, err)
+                break
+
             if (
                 data is None
                 or data.Lines is None
                 or data.IsDataAvailable is False
                 or data.IsError
             ):
-                continue
+                break
 
             # Process the returned data; expect a "Lines" list.
             lines = data.Lines
+
+            if len(lines) < 24:
+                _LOGGER.warning(
+                    "Stopping at %s/%s/%s - only %d/24 hours available, Thames Water data not yet complete",
+                    day, month, year, len(lines)
+                )
+                break
+
             latest_usage = 0
             for line in lines:
                 time_str = line.Label
@@ -280,16 +289,6 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                 )
 
         _LOGGER.info("Fetched %d historical entries", len(readings))
-
-        if readings:
-            last_day = max(r["dt"].date() for r in readings)
-            last_day_readings = [r for r in readings if r["dt"].date() == last_day]
-            if len(last_day_readings) < 24:
-                _LOGGER.warning(
-                    "Skipping %s - only %d/24 hours available, Thames Water data not yet complete",
-                    last_day, len(last_day_readings)
-                )
-                readings = [r for r in readings if r["dt"].date() != last_day]
 
         liter_cost = self._config_entry.options.get(
             "liter_cost", self._config_entry.data.get("liter_cost", DEFAULT_LITER_COST)
