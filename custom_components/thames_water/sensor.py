@@ -281,6 +281,16 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
 
         _LOGGER.info("Fetched %d historical entries", len(readings))
 
+        if readings:
+            last_day = max(r["dt"].date() for r in readings)
+            last_day_readings = [r for r in readings if r["dt"].date() == last_day]
+            if len(last_day_readings) < 24:
+                _LOGGER.warning(
+                    "Skipping %s - only %d/24 hours available, Thames Water data not yet complete",
+                    last_day, len(last_day_readings)
+                )
+                readings = [r for r in readings if r["dt"].date() != last_day]
+
         liter_cost = self._config_entry.options.get(
             "liter_cost", self._config_entry.data.get("liter_cost", DEFAULT_LITER_COST)
         )
