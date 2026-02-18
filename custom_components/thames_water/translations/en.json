@@ -1,0 +1,63 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Thames Water Setup",
+        "description": "Enter your Thames Water account details",
+        "data": {
+          "username": "Email Address",
+          "password": "Password",
+          "account_number": "Account Number",
+          "meter_id": "Meter ID",
+          "liter_cost": "Cost per Liter (GBP)",
+          "fetch_hours": "Fetch Hours (comma-separated, e.g. 15,23)"
+        },
+        "data_description": {
+          "username": "Your Thames Water account email address",
+          "password": "Your Thames Water account password",
+          "account_number": "Your Thames Water account number",
+          "meter_id": "Your water meter ID",
+          "liter_cost": "Cost per liter in GBP (e.g., 0.00138)",
+          "fetch_hours": "Hours to fetch data daily (comma-separated, e.g. 15,23)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Thames Water",
+        "data": {
+          "username": "Email Address",
+          "password": "Password",
+          "account_number": "Account Number",
+          "meter_id": "Meter ID",
+          "liter_cost": "Cost per Liter (GBP)",
+          "fetch_hours": "Fetch Hours"
+        },
+        "data_description": {
+          "username": "Your Thames Water account email address",
+          "password": "Your Thames Water account password",
+          "account_number": "Your Thames Water account number",
+          "meter_id": "Your water meter ID",
+          "liter_cost": "Cost per liter in GBP (e.g., 0.00138)",
+          "fetch_hours": "Hours to fetch data daily (comma-separated, e.g. 15,23)"
+        }
+      }
+    },
+    "error": {
+      "liter_cost": "Value must be between 0.00005 and 1.0"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Thames Water Options",
+        "data": {
+          "liter_cost": "Cost per Liter (GBP)",
+          "fetch_hours": "Fetch Hours"
+        },
+        "data_description": {
+          "liter_cost": "Cost per liter in GBP (e.g., 0.00138)",
+          "fetch_hours": "Hours to fetch data daily (comma-separated, e.g. 15,23)"
+        }
+      }
+    }
+  }
+}

@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 import logging
-import asyncio
 from operator import itemgetter
 import random
 
 from homeassistant.components.recorder import get_instance
-from homeassistant.components.recorder.models import StatisticData, StatisticMetaData, StatisticMeanType
+from homeassistant.components.recorder.models import (
+    StatisticData,
+    StatisticMeanType,
+    StatisticMetaData,
+)
 from homeassistant.components.recorder.statistics import (
     async_add_external_statistics,
     get_last_statistics,
@@ -21,17 +25,18 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfVolume
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.util import dt as dt_util
-from homeassistant.exceptions import ConfigEntryNotReady
 
-from .const import DOMAIN, DEFAULT_LITER_COST
+from .const import DEFAULT_LITER_COST, DOMAIN
 from .entity import ThamesWaterEntity
 from .thameswaterclient import ThamesWater
 
 _LOGGER = logging.getLogger(__name__)
 UPDATE_HOURS = [15, 23]
+
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities
@@ -44,9 +49,11 @@ async def async_setup_entry(
 
     async_add_entities([sensor], update_before_add=True)
 
-    if "fetch_hours" in entry.data and entry.data["fetch_hours"]:
+    if entry.data.get("fetch_hours"):
         try:
-            update_hours = [int(h.strip()) for h in entry.data["fetch_hours"].split(",")]
+            update_hours = [
+                int(h.strip()) for h in entry.data["fetch_hours"].split(",")
+            ]
         except (ValueError, AttributeError):
             _LOGGER.warning("Invalid fetch_hours configuration, using defaults")
             update_hours = UPDATE_HOURS
@@ -110,40 +117,52 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
         self._config_entry = config_entry
         self._state: float | None = None
 
-        self._username = config_entry.data.get("username")
-        self._password = config_entry.data.get("password")
-        self._account_number = config_entry.data.get("account_number")
-        self._meter_id = config_entry.data.get("meter_id")
+        username = config_entry.data.get("username")
+        password = config_entry.data.get("password")
+        account_number = config_entry.data.get("account_number")
+        meter_id = config_entry.data.get("meter_id")
 
         # Validate required fields and log errors
-        if not self._username:
+        if not username:
             _LOGGER.error(
                 "Username not found in config entry data. Available keys: %s",
-                list(config_entry.data.keys())
+                list(config_entry.data.keys()),
             )
-            raise ConfigEntryNotReady("Username not configured. Please remove and re-add the integration.")
-        
-        if not self._password:
+            raise ConfigEntryNotReady(
+                "Username not configured. Please remove and re-add the integration."
+            )
+
+        if not password:
             _LOGGER.error(
                 "Password not found in config entry data. Available keys: %s",
-                list(config_entry.data.keys())
+                list(config_entry.data.keys()),
             )
-            raise ConfigEntryNotReady("Password not configured. Please remove and re-add the integration.")
-        
-        if not self._account_number:
+            raise ConfigEntryNotReady(
+                "Password not configured. Please remove and re-add the integration."
+            )
+
+        if not account_number:
             _LOGGER.error(
                 "Account number not found in config entry data. Available keys: %s",
-                list(config_entry.data.keys())
+                list(config_entry.data.keys()),
             )
-            raise ConfigEntryNotReady("Account number not configured. Please remove and re-add the integration.")
-        
-        if not self._meter_id:
+            raise ConfigEntryNotReady(
+                "Account number not configured. Please remove and re-add the integration."
+            )
+
+        if not meter_id:
             _LOGGER.error(
                 "Meter ID not found in config entry data. Available keys: %s",
-                list(config_entry.data.keys())
+                list(config_entry.data.keys()),
             )
-            raise ConfigEntryNotReady("Meter ID not configured. Please remove and re-add the integration.")
+            raise ConfigEntryNotReady(
+                "Meter ID not configured. Please remove and re-add the integration."
+            )
 
+        self._username: str = username
+        self._password: str = password
+        self._account_number: int = account_number
+        self._meter_id: int = meter_id
         self._attr_unique_id = f"water_usage_{self._meter_id}"
         self._attr_should_poll = False
 
@@ -152,7 +171,6 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
         """Return the sensor state (latest hourly consumption in Liters)."""
         return self._state
 
-    @callback
     async def async_update_callback(self, ts) -> None:
         """Update the sensor state."""
         await self.async_update()
@@ -169,7 +187,12 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
         try:
             async with asyncio.timeout(30):
                 last_stats = await get_instance(self.hass).async_add_executor_job(
-                    get_last_statistics, self.hass, 1, consumption_stat_id, True, {"sum"}
+                    get_last_statistics,
+                    self.hass,
+                    1,
+                    consumption_stat_id,
+                    True,
+                    {"sum"},
                 )
             async with asyncio.timeout(30):
                 last_cost_stats = await get_instance(self.hass).async_add_executor_job(
@@ -179,14 +202,20 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
             # If a previous value exists, use its "sum" as the starting cumulative.
             if len(last_stats.get(consumption_stat_id, [])) > 0:
                 last_stats = last_stats[consumption_stat_id]
-                last_stats = sorted(last_stats, key=itemgetter("start"), reverse=False)[0]
+                last_stats = sorted(last_stats, key=itemgetter("start"), reverse=False)[
+                    0
+                ]
             # If a previous value exists, use its "sum" as the starting cumulative.
             if len(last_cost_stats.get(cost_stat_id, [])) > 0:
                 last_cost_stats = last_cost_stats[cost_stat_id]
-                last_cost_stats = sorted(last_cost_stats, key=itemgetter("start"), reverse=False)[0]
+                last_cost_stats = sorted(
+                    last_cost_stats, key=itemgetter("start"), reverse=False
+                )[0]
 
         except TimeoutError:
-            _LOGGER.warning("Timeout while fetching last statistics for Thames Water integration")
+            _LOGGER.warning(
+                "Timeout while fetching last statistics for Thames Water integration"
+            )
             last_stats = None
             last_cost_stats = None
         except (AttributeError, Exception) as err:
@@ -196,7 +225,11 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
 
         # Data is available from at least 3 days ago.
         end_dt = datetime.now() - timedelta(days=3)
-        if last_stats is not None and last_stats.get("sum") is not None:
+        if (
+            last_stats is not None
+            and last_stats.get("sum") is not None
+            and last_stats.get("start") is not None
+        ):
             start_dt = dt_util.as_utc(datetime.fromtimestamp(last_stats.get("start")))
         else:
             start_dt = end_dt - timedelta(days=30)
@@ -213,7 +246,7 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                     self._password,
                     self._account_number,
                 )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _LOGGER.error("Timeout creating Thames Water client")
             return
         except asyncio.CancelledError:
@@ -244,11 +277,13 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                         d,
                         d,
                     )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _LOGGER.warning("Timeout fetching data for %s/%s/%s", day, month, year)
                 break
             except Exception as err:
-                _LOGGER.warning("Could not get data for %s/%s/%s: %s", day, month, year, err)
+                _LOGGER.warning(
+                    "Could not get data for %s/%s/%s: %s", day, month, year, err
+                )
                 break
 
             if (
@@ -265,7 +300,10 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
             if len(lines) < 24:
                 _LOGGER.warning(
                     "Stopping at %s/%s/%s - only %d/24 hours available, Thames Water data not yet complete",
-                    day, month, year, len(lines)
+                    day,
+                    month,
+                    year,
+                    len(lines),
                 )
                 break
 
@@ -296,28 +334,44 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
 
         _LOGGER.debug("Using Liter Cost: %s", liter_cost)
 
-        if last_stats is not None and last_stats.get("sum") is not None:
-            initial_cumulative = last_stats["sum"]
+        if (
+            last_stats is not None
+            and last_stats.get("sum") is not None
+            and last_stats.get("start") is not None
+        ):
+            initial_cumulative = last_stats.get("sum")
             # Discard all readings before last_stats["start"].
             start_ts = dt_util.as_utc(datetime.fromtimestamp(last_stats.get("start")))
-            
+
             try:
                 # Attempt to restore state if None.
                 if self._state is None and len(readings) > 0:
-                    last_recorded_date = start_ts.date() - timedelta(days=1) if start_ts.hour == 0 else start_ts.date()
-                    daily_total = sum(r["state"] for r in readings if r["dt"].date() == last_recorded_date)
+                    last_recorded_date = (
+                        start_ts.date() - timedelta(days=1)
+                        if start_ts.hour == 0
+                        else start_ts.date()
+                    )
+                    daily_total = sum(
+                        r["state"]
+                        for r in readings
+                        if r["dt"].date() == last_recorded_date
+                    )
                     if daily_total > 0:
                         self._state = daily_total
-                        _LOGGER.debug("Restored state from last recorded day %s: %s L", last_recorded_date, self._state)
+                        _LOGGER.debug(
+                            "Restored state from last recorded day %s: %s L",
+                            last_recorded_date,
+                            self._state,
+                        )
             except Exception as err:
                 _LOGGER.error("Failed to restore state from last recorded day: %s", err)
-            
+
             readings = [r for r in readings if dt_util.as_utc(r["dt"]) > start_ts]
         else:
             initial_cumulative = 0.0
 
         if last_cost_stats is not None and last_cost_stats.get("sum") is not None:
-            initial_cost_cumulative = last_cost_stats["sum"]
+            initial_cost_cumulative = last_cost_stats.get("sum")
         else:
             initial_cost_cumulative = 0.0
 
@@ -359,9 +413,8 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
             unit_class=None,
         )
         try:
-            async with asyncio.timeout(30):
-                async_add_external_statistics(self._hass, metadata_consumption, stats)
-                async_add_external_statistics(self._hass, metadata_cost, cost_stats)
-        except asyncio.TimeoutError:
-            _LOGGER.error("Timeout writing statistics to database")
+            async_add_external_statistics(self._hass, metadata_consumption, stats)
+            async_add_external_statistics(self._hass, metadata_cost, cost_stats)
+        except Exception as err:
+            _LOGGER.error("Error writing statistics to database: %s", err)
             raise

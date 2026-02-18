@@ -1,13 +1,13 @@
 """Number platform for the Thames Water integration."""
 
-from homeassistant.components.number import NumberEntity
+from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .entity import ThamesWaterEntity
 from .const import DEFAULT_LITER_COST
+from .entity import ThamesWaterEntity
 
 
 async def async_setup_entry(
@@ -17,7 +17,11 @@ async def async_setup_entry(
 ) -> None:
     """Set up the number entities for Thames Water."""
     # Get values first from options, falling back to entry.data, then to default
-    liter_cost = entry.options.get("liter_cost") or entry.data.get("liter_cost") or DEFAULT_LITER_COST
+    liter_cost = (
+        entry.options.get("liter_cost")
+        or entry.data.get("liter_cost")
+        or DEFAULT_LITER_COST
+    )
 
     entities = [
         ThamesWaterLiterCost(entry, initial_value=liter_cost),
@@ -35,7 +39,7 @@ class ThamesWaterLiterCost(ThamesWaterEntity, NumberEntity):
     _attr_native_min_value = 0.00005
     _attr_native_step = 0.00005
     _attr_icon = "mdi:currency-gbp"
-    _attr_mode = "box"
+    _attr_mode = NumberMode.BOX
 
     def __init__(
         self,
