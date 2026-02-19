@@ -47,7 +47,7 @@ async def async_setup_entry(
         entry,
     )
 
-    async_add_entities([sensor], update_before_add=True)
+    async_add_entities([sensor], update_before_add=False)
 
     if entry.data.get("fetch_hours"):
         try:
@@ -62,13 +62,18 @@ async def async_setup_entry(
 
     # Schedule the sensor to update every day at UPDATE_HOURS.
     rand_minute = random.randint(0, 10)
-    async_track_time_change(
+    unsubscribe = async_track_time_change(
         hass,
         sensor.async_update_callback,
         hour=update_hours,
         minute=rand_minute,
         second=0,
     )
+    entry.async_on_unload(unsubscribe)
+
+    # Run an initial refresh in the background so setup can complete quickly.
+    initial_update_task = hass.async_create_task(sensor.async_update_callback(None))
+    entry.async_on_unload(initial_update_task.cancel)
     return True
 
 
@@ -173,8 +178,14 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
 
     async def async_update_callback(self, ts) -> None:
         """Update the sensor state."""
-        await self.async_update()
-        self.async_write_ha_state()
+        try:
+            await self.async_update()
+            self.async_write_ha_state()
+        except asyncio.CancelledError:
+            _LOGGER.debug("Thames Water sensor update callback was cancelled")
+            raise
+        except Exception as err:
+            _LOGGER.error("Unexpected error in Thames Water update callback: %s", err)
 
     async def async_update(self):
         """Fetch data, build hourly statistics, and inject external statistics."""

@@ -22,6 +22,11 @@ class ThamesWaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors = self._validate_input(user_input)
 
             if not errors:
+                if self._is_already_configured(user_input):
+                    return self.async_abort(reason="already_configured")
+                unique_id = self._build_unique_id(user_input)
+                await self.async_set_unique_id(unique_id)
+                self._abort_if_unique_id_configured()
                 return self.async_create_entry(title="Thames Water", data=user_input)
 
         return self.async_show_form(
@@ -79,6 +84,23 @@ class ThamesWaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors["fetch_hours"] = "Invalid format. Use comma-separated hours."
 
         return errors
+
+    @staticmethod
+    def _build_unique_id(user_input: dict[str, Any]) -> str:
+        """Build a stable unique ID for a Thames Water config entry."""
+        account_number = str(user_input.get("account_number", "")).strip()
+        meter_id = str(user_input.get("meter_id", "")).strip()
+        return f"{account_number}:{meter_id}"
+
+    def _is_already_configured(self, user_input: dict[str, Any]) -> bool:
+        """Check if account + meter is already configured."""
+        account_number = str(user_input.get("account_number", "")).strip()
+        meter_id = str(user_input.get("meter_id", "")).strip()
+        return any(
+            str(entry.data.get("account_number", "")).strip() == account_number
+            and str(entry.data.get("meter_id", "")).strip() == meter_id
+            for entry in self._async_current_entries()
+        )
 
     def _get_data_schema(self, defaults: dict[str, Any] | None = None) -> vol.Schema:
         """Return the data schema with optional defaults."""
