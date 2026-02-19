@@ -1,5 +1,7 @@
 """Number platform for the Thames Water integration."""
 
+import logging
+
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -9,19 +11,22 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DEFAULT_LITER_COST
 from .entity import ThamesWaterEntity
 
+_LOGGER = logging.getLogger(__name__)
+
 
 async def async_setup_entry(
-    hass: HomeAssistant,
+    _hass: HomeAssistant,
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the number entities for Thames Water."""
-    # Get values first from options, falling back to entry.data, then to default
-    liter_cost = (
-        entry.options.get("liter_cost")
-        or entry.data.get("liter_cost")
-        or DEFAULT_LITER_COST
-    )
+    # Use options first, then entry data, then fallback to default.
+    if "liter_cost" in entry.options:
+        liter_cost = entry.options["liter_cost"]
+    elif "liter_cost" in entry.data:
+        liter_cost = entry.data["liter_cost"]
+    else:
+        liter_cost = DEFAULT_LITER_COST
 
     entities = [
         ThamesWaterLiterCost(entry, initial_value=liter_cost),
@@ -52,7 +57,15 @@ class ThamesWaterLiterCost(ThamesWaterEntity, NumberEntity):
         if initial_value is None:
             self._value = DEFAULT_LITER_COST
         else:
-            self._value = float(initial_value)
+            try:
+                self._value = float(initial_value)
+            except (TypeError, ValueError):
+                _LOGGER.debug(
+                    "Invalid initial liter_cost value '%s'; using default %s",
+                    initial_value,
+                    DEFAULT_LITER_COST,
+                )
+                self._value = DEFAULT_LITER_COST
         self._attr_unique_id = f"{config_entry.entry_id}_liter_cost"
 
     @property

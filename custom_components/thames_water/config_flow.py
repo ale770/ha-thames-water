@@ -15,15 +15,18 @@ class ThamesWaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def async_step_user(self, user_input=None) -> ConfigFlowResult:
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Handle the initial step."""
+        if self._async_current_entries():
+            return self.async_abort(reason="single_instance_allowed")
+
         errors = {}
         if user_input is not None:
             errors = self._validate_input(user_input)
 
             if not errors:
-                if self._is_already_configured(user_input):
-                    return self.async_abort(reason="already_configured")
                 unique_id = self._build_unique_id(user_input)
                 await self.async_set_unique_id(unique_id)
                 self._abort_if_unique_id_configured()
@@ -44,7 +47,7 @@ class ThamesWaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         existing_entry = self.hass.config_entries.async_get_entry(entry_id)
 
         if existing_entry is None:
-            return self.async_abort(reason="Entry not found")
+            return self.async_abort(reason="entry_not_found")
         if user_input is not None:
             errors = self._validate_input(user_input)
 
@@ -71,17 +74,19 @@ class ThamesWaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 liter_cost_val = float(liter_cost_str)
 
             if liter_cost_val < 0.00005 or liter_cost_val > 1.0:
-                errors["liter_cost"] = "Value must be between 0.00005 and 1.0"
+                errors["liter_cost"] = "liter_cost_out_of_range"
         except (TypeError, ValueError):
-            errors["liter_cost"] = "Not a valid number"
+            errors["liter_cost"] = "invalid_liter_cost"
 
         hours_str = user_input.get("fetch_hours", "")
+        if hours_str is None or str(hours_str).strip() == "":
+            return errors
         try:
-            hours = [int(hour) for hour in hours_str.split(",")]
+            hours = [int(hour.strip()) for hour in str(hours_str).split(",")]
             if any(hour < 0 or hour > 23 for hour in hours):
-                errors["fetch_hours"] = "Hours must be between 0 and 23"
+                errors["fetch_hours"] = "fetch_hours_out_of_range"
         except ValueError:
-            errors["fetch_hours"] = "Invalid format. Use comma-separated hours."
+            errors["fetch_hours"] = "invalid_fetch_hours"
 
         return errors
 
@@ -91,16 +96,6 @@ class ThamesWaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         account_number = str(user_input.get("account_number", "")).strip()
         meter_id = str(user_input.get("meter_id", "")).strip()
         return f"{account_number}:{meter_id}"
-
-    def _is_already_configured(self, user_input: dict[str, Any]) -> bool:
-        """Check if account + meter is already configured."""
-        account_number = str(user_input.get("account_number", "")).strip()
-        meter_id = str(user_input.get("meter_id", "")).strip()
-        return any(
-            str(entry.data.get("account_number", "")).strip() == account_number
-            and str(entry.data.get("meter_id", "")).strip() == meter_id
-            for entry in self._async_current_entries()
-        )
 
     def _get_data_schema(self, defaults: dict[str, Any] | None = None) -> vol.Schema:
         """Return the data schema with optional defaults."""

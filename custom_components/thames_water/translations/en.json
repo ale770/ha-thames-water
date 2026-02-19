@@ -42,10 +42,16 @@
       }
     },
     "abort": {
-      "already_configured": "This Thames Water meter is already configured."
+      "already_configured": "This Thames Water meter is already configured.",
+      "single_instance_allowed": "Only one Thames Water integration can be configured.",
+      "entry_not_found": "The config entry could not be found.",
+      "no_entry_id": "Reconfiguration failed: missing config entry id."
     },
     "error": {
-      "liter_cost": "Value must be between 0.00005 and 1.0"
+      "invalid_liter_cost": "Not a valid number.",
+      "liter_cost_out_of_range": "Value must be between 0.00005 and 1.0.",
+      "invalid_fetch_hours": "Invalid format. Use comma-separated hours.",
+      "fetch_hours_out_of_range": "Hours must be between 0 and 23."
     }
   },
   "options": {

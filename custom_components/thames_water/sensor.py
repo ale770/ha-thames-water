@@ -229,7 +229,7 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
             )
             last_stats = None
             last_cost_stats = None
-        except (AttributeError, Exception) as err:
+        except (Exception) as err:
             _LOGGER.error("Error fetching last statistics: %s", err)
             last_stats = None
             last_cost_stats = None
