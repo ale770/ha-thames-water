@@ -1,4 +1,4 @@
 """Consts."""
 
 DOMAIN = "thames_water"
-DEFAULT_LITER_COST = 0.0040223
+DEFAULT_LITER_COST = 0.0042067
