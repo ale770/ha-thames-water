@@ -80,14 +80,13 @@ class ThamesWaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors["liter_cost"] = "invalid_liter_cost"
 
         hours_str = user_input.get("fetch_hours", "")
-        if hours_str is None or str(hours_str).strip() == "":
-            return errors
-        try:
-            hours = [int(hour.strip()) for hour in str(hours_str).split(",")]
-            if any(hour < 0 or hour > 23 for hour in hours):
-                errors["fetch_hours"] = "fetch_hours_out_of_range"
-        except ValueError:
-            errors["fetch_hours"] = "invalid_fetch_hours"
+        if hours_str is not None and str(hours_str).strip() != "":
+            try:
+                hours = [int(hour.strip()) for hour in str(hours_str).split(",")]
+                if any(hour < 0 or hour > 23 for hour in hours):
+                    errors["fetch_hours"] = "fetch_hours_out_of_range"
+            except ValueError:
+                errors["fetch_hours"] = "invalid_fetch_hours"
 
         no_data_before_str = user_input.get("no_data_before", "").strip()
         if no_data_before_str:
