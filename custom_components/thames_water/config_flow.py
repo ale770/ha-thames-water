@@ -1,5 +1,6 @@
 """Config Flow for integration."""
 
+from datetime import datetime
 from typing import Any
 
 import voluptuous as vol
@@ -88,6 +89,13 @@ class ThamesWaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except ValueError:
             errors["fetch_hours"] = "invalid_fetch_hours"
 
+        no_data_before_str = user_input.get("no_data_before", "").strip()
+        if no_data_before_str:
+            try:
+                datetime.strptime(no_data_before_str, "%Y-%m-%d")
+            except ValueError:
+                errors["no_data_before"] = "invalid_no_data_before"
+
         return errors
 
     @staticmethod
@@ -127,6 +135,10 @@ class ThamesWaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(
                     "fetch_hours",
                     default=defaults.get("fetch_hours", "15,23"),
+                ): str,
+                vol.Optional(
+                    "no_data_before",
+                    default=defaults.get("no_data_before", ""),
                 ): str,
             }
         )
