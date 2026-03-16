@@ -10,7 +10,8 @@
           "account_number": "Account Number",
           "meter_id": "Meter ID",
           "liter_cost": "Cost per Liter (GBP)",
-          "fetch_hours": "Fetch Hours (comma-separated, e.g. 15,23)"
+          "fetch_hours": "Fetch Hours (comma-separated, e.g. 15,23)",
+          "no_data_before": "No Data Before (optional)"
         },
         "data_description": {
           "username": "Your Thames Water account email address",
@@ -18,7 +19,8 @@
           "account_number": "Your Thames Water account number",
           "meter_id": "Your water meter ID",
           "liter_cost": "Cost per liter in GBP (e.g., 0.00138)",
-          "fetch_hours": "Hours to fetch data daily (comma-separated, e.g. 15,23)"
+          "fetch_hours": "Hours to fetch data daily (comma-separated, e.g. 15,23)",
+          "no_data_before": "Do not load data before this date (YYYY-MM-DD). Useful if your smart meter was recently installed."
         }
       },
       "reconfigure": {
@@ -29,7 +31,8 @@
           "account_number": "Account Number",
           "meter_id": "Meter ID",
           "liter_cost": "Cost per Liter (GBP)",
-          "fetch_hours": "Fetch Hours"
+          "fetch_hours": "Fetch Hours",
+          "no_data_before": "No Data Before (optional)"
         },
         "data_description": {
           "username": "Your Thames Water account email address",
@@ -37,7 +40,8 @@
           "account_number": "Your Thames Water account number",
           "meter_id": "Your water meter ID",
           "liter_cost": "Cost per liter in GBP (e.g., 0.00138)",
-          "fetch_hours": "Hours to fetch data daily (comma-separated, e.g. 15,23)"
+          "fetch_hours": "Hours to fetch data daily (comma-separated, e.g. 15,23)",
+          "no_data_before": "Do not load data before this date (YYYY-MM-DD). Useful if your smart meter was recently installed."
         }
       }
     },
@@ -51,7 +55,8 @@
       "invalid_liter_cost": "Not a valid number.",
       "liter_cost_out_of_range": "Value must be between 0.00005 and 1.0.",
       "invalid_fetch_hours": "Invalid format. Use comma-separated hours.",
-      "fetch_hours_out_of_range": "Hours must be between 0 and 23."
+      "fetch_hours_out_of_range": "Hours must be between 0 and 23.",
+      "invalid_no_data_before": "Invalid date format. Use YYYY-MM-DD (e.g. 2026-03-10)."
     }
   },
   "options": {

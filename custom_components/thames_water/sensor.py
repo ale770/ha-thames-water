@@ -248,6 +248,15 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
         current_date = start_dt.date()
         end_date = end_dt.date()
 
+        no_data_before_str = self._config_entry.data.get("no_data_before", "").strip()
+        if no_data_before_str:
+            try:
+                no_data_before = datetime.strptime(no_data_before_str, "%Y-%m-%d").date()
+                if current_date < no_data_before:
+                    current_date = no_data_before
+            except ValueError:
+                _LOGGER.warning("Invalid no_data_before date '%s', ignoring", no_data_before_str)
+
         try:
             _LOGGER.debug("Creating Thames Water Client")
             async with asyncio.timeout(120):
