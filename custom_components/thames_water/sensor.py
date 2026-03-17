@@ -37,7 +37,6 @@ from .thameswaterclient import ThamesWater
 _LOGGER = logging.getLogger(__name__)
 UPDATE_HOURS = [15, 23]
 
-
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities
 ) -> bool:
@@ -279,6 +278,31 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
         # readings holds all hourly data for the entire period.
         readings: list[dict] = []
         latest_usage = 0
+        pending_incomplete_days: list[tuple[datetime, list]] = []
+
+        def _append_lines(day_dt: datetime, lines: list) -> int:
+            """Append hourly lines for a day and return total usage."""
+            day_usage = 0
+            for line in lines:
+                time_str = line.Label
+                usage = line.Usage
+                day_usage += usage
+                try:
+                    hour, minute = map(int, time_str.split(":"))
+                except (ValueError, AttributeError) as err:
+                    _LOGGER.error("Error parsing time %s: %s", time_str, err)
+                    continue
+
+                naive_datetime = datetime(
+                    day_dt.year, day_dt.month, day_dt.day, hour, minute
+                )
+                readings.append(
+                    {
+                        "dt": naive_datetime,
+                        "state": usage,  # Usage in Liters per hour
+                    }
+                )
+            return day_usage
 
         while current_date <= end_date:
             year = current_date.year
@@ -319,32 +343,33 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
 
             if len(lines) < 24:
                 _LOGGER.warning(
-                    "Stopping at %s/%s/%s - only %d/24 hours available, Thames Water data not yet complete",
+                    "Deferring %s/%s/%s - only %d/24 hours available; waiting for next day to confirm",
                     day,
                     month,
                     year,
                     len(lines),
                 )
-                break
+                pending_incomplete_days.append((d, lines))
+                continue
 
-            latest_usage = 0
-            for line in lines:
-                time_str = line.Label
-                usage = line.Usage
-                latest_usage += usage
-                try:
-                    hour, minute = map(int, time_str.split(":"))
-                except (ValueError, AttributeError) as err:
-                    _LOGGER.error("Error parsing time %s: %s", time_str, err)
-                    continue
+            # If prior days were incomplete but today is complete, assume the gap days are broken
+            # and insert whatever data we have for them once we see a complete day.
+            if pending_incomplete_days:
+                for prev_day, prev_lines in pending_incomplete_days:
+                    _LOGGER.warning(
+                        "Assuming %s/%s/%s is broken (only %d/24 hours) because %s/%s/%s is complete",
+                        prev_day.day,
+                        prev_day.month,
+                        prev_day.year,
+                        len(prev_lines),
+                        day,
+                        month,
+                        year,
+                    )
+                    latest_usage = _append_lines(prev_day, prev_lines)
+                pending_incomplete_days = []
 
-                naive_datetime = datetime(year, month, day, hour, minute)
-                readings.append(
-                    {
-                        "dt": naive_datetime,
-                        "state": usage,  # Usage in Liters per hour
-                    }
-                )
+            latest_usage = _append_lines(d, lines)
 
         _LOGGER.info("Fetched %d historical entries", len(readings))
 
