@@ -353,7 +353,7 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                 continue
 
             # If prior days were incomplete but today is complete, assume the gap days are broken
-            # and insert whatever data we have for them once we see two complete days in a row.
+            # and insert whatever data we have for them once we see a complete day.
             if pending_incomplete_days:
                 for prev_day, prev_lines in pending_incomplete_days:
                     _LOGGER.warning(
