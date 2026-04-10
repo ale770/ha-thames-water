@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 import logging
 from operator import itemgetter
@@ -37,16 +38,28 @@ from .thameswaterclient import ThamesWater
 _LOGGER = logging.getLogger(__name__)
 UPDATE_HOURS = [15, 23]
 
+
+@dataclass
+class ThamesWaterSensorData:
+    """Shared runtime state for Thames Water sensors."""
+
+    usage: float | None = None
+    meter_read: float | None = None
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities
 ) -> bool:
     """Set up the Thames Water sensor platform."""
-    sensor = ThamesWaterSensor(
+    data = ThamesWaterData(hass, entry)
+    usage_sensor = ThamesWaterUsageSensor(
         hass,
         entry,
+        data,
     )
+    meter_read_sensor = ThamesWaterMeterReadSensor(entry, data)
 
-    async_add_entities([sensor], update_before_add=False)
+    async_add_entities([usage_sensor, meter_read_sensor], update_before_add=False)
 
     if entry.data.get("fetch_hours"):
         try:
@@ -63,7 +76,7 @@ async def async_setup_entry(
     rand_minute = random.randint(0, 10)
     unsubscribe = async_track_time_change(
         hass,
-        sensor.async_update_callback,
+        data.async_update_callback,
         hour=update_hours,
         minute=rand_minute,
         second=0,
@@ -71,7 +84,7 @@ async def async_setup_entry(
     entry.async_on_unload(unsubscribe)
 
     # Run an initial refresh in the background so setup can complete quickly.
-    initial_update_task = hass.async_create_task(sensor.async_update_callback(None))
+    initial_update_task = hass.async_create_task(data.async_update_callback(None))
     entry.async_on_unload(initial_update_task.cancel)
     return True
 
@@ -103,23 +116,15 @@ def _generate_statistics_from_readings(
     return stats
 
 
-class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
-    """Thames Water Sensor class."""
+class ThamesWaterData:
+    """Shared updater for Thames Water sensor entities."""
 
-    _attr_state_class = SensorStateClass.TOTAL
-    _attr_device_class = SensorDeviceClass.WATER
-    _attr_native_unit_of_measurement = UnitOfVolume.LITERS
-    _attr_name = "Thames Water Sensor"
-
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        config_entry: ConfigEntry,
-    ) -> None:
-        """Initialize the sensor."""
+    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
+        """Initialize the shared Thames Water updater."""
         self._hass = hass
         self._config_entry = config_entry
-        self._state: float | None = None
+        self._entities: list[SensorEntity] = []
+        self._values = ThamesWaterSensorData()
 
         username = config_entry.data.get("username")
         password = config_entry.data.get("password")
@@ -167,19 +172,17 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
         self._password: str = password
         self._account_number: int = account_number
         self._meter_id: int = meter_id
-        self._attr_unique_id = f"water_usage_{self._meter_id}"
-        self._attr_should_poll = False
 
-    @property
-    def state(self) -> float | None:
-        """Return the sensor state (latest hourly consumption in Liters)."""
-        return self._state
+    def register_entity(self, entity: SensorEntity) -> None:
+        """Track entities that should be updated after a refresh."""
+        self._entities.append(entity)
 
     async def async_update_callback(self, ts) -> None:
-        """Update the sensor state."""
+        """Update the shared sensor state."""
         try:
             await self.async_update()
-            self.async_write_ha_state()
+            for entity in self._entities:
+                entity.async_write_ha_state()
         except asyncio.CancelledError:
             _LOGGER.debug("Thames Water sensor update callback was cancelled")
             raise
@@ -187,7 +190,7 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
             _LOGGER.error("Unexpected error in Thames Water update callback: %s", err)
 
     async def async_update(self):
-        """Fetch data, build hourly statistics, and inject external statistics."""
+        """Fetch data, build hourly statistics, and update shared sensor values."""
         consumption_stat_id = f"{DOMAIN}:thameswater_consumption"
         cost_stat_id = f"{DOMAIN}:thameswater_cost"
 
@@ -196,17 +199,22 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
 
         try:
             async with asyncio.timeout(30):
-                last_stats = await get_instance(self.hass).async_add_executor_job(
+                last_stats = await get_instance(self._hass).async_add_executor_job(
                     get_last_statistics,
-                    self.hass,
+                    self._hass,
                     1,
                     consumption_stat_id,
                     True,
                     {"sum"},
                 )
             async with asyncio.timeout(30):
-                last_cost_stats = await get_instance(self.hass).async_add_executor_job(
-                    get_last_statistics, self.hass, 1, cost_stat_id, True, {"sum"}
+                last_cost_stats = await get_instance(self._hass).async_add_executor_job(
+                    get_last_statistics,
+                    self._hass,
+                    1,
+                    cost_stat_id,
+                    True,
+                    {"sum"},
                 )
 
             # If a previous value exists, use its "sum" as the starting cumulative.
@@ -278,15 +286,18 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
         # readings holds all hourly data for the entire period.
         readings: list[dict] = []
         latest_usage = 0
+        latest_meter_read: float | None = None
         pending_incomplete_days: list[tuple[datetime, list]] = []
 
-        def _append_lines(day_dt: datetime, lines: list) -> int:
-            """Append hourly lines for a day and return total usage."""
+        def _append_lines(day_dt: datetime, lines: list) -> tuple[int, float | None]:
+            """Append hourly lines for a day and return total usage and latest read."""
             day_usage = 0
+            day_last_read: float | None = None
             for line in lines:
                 time_str = line.Label
                 usage = line.Usage
                 day_usage += usage
+                day_last_read = line.Read
                 try:
                     hour, minute = map(int, time_str.split(":"))
                 except (ValueError, AttributeError) as err:
@@ -302,7 +313,7 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                         "state": usage,  # Usage in Liters per hour
                     }
                 )
-            return day_usage
+            return day_usage, day_last_read
 
         while current_date <= end_date:
             year = current_date.year
@@ -383,10 +394,10 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                         month,
                         year,
                     )
-                    latest_usage = _append_lines(prev_day, prev_lines)
+                    latest_usage, latest_meter_read = _append_lines(prev_day, prev_lines)
                 pending_incomplete_days = []
 
-            latest_usage = _append_lines(d, lines)
+            latest_usage, latest_meter_read = _append_lines(d, lines)
 
         _LOGGER.info("Fetched %d historical entries", len(readings))
 
@@ -407,7 +418,7 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
 
             try:
                 # Attempt to restore state if None.
-                if self._state is None and len(readings) > 0:
+                if self._values.usage is None and len(readings) > 0:
                     last_recorded_date = (
                         start_ts.date() - timedelta(days=1)
                         if start_ts.hour == 0
@@ -419,11 +430,11 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                         if r["dt"].date() == last_recorded_date
                     )
                     if daily_total > 0:
-                        self._state = daily_total
+                        self._values.usage = daily_total
                         _LOGGER.debug(
                             "Restored state from last recorded day %s: %s L",
                             last_recorded_date,
-                            self._state,
+                            self._values.usage,
                         )
             except Exception as err:
                 _LOGGER.error("Failed to restore state from last recorded day: %s", err)
@@ -451,7 +462,9 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
             liter_cost=float(liter_cost),
         )
         if latest_usage > 0:
-            self._state = latest_usage
+            self._values.usage = latest_usage
+        if latest_meter_read is not None:
+            self._values.meter_read = latest_meter_read
 
         # Build per-hour statistics from each reading.
         metadata_consumption = StatisticMetaData(
@@ -480,3 +493,50 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
         except Exception as err:
             _LOGGER.error("Error writing statistics to database: %s", err)
             raise
+
+
+class ThamesWaterUsageSensor(ThamesWaterEntity, SensorEntity):
+    """Thames Water usage sensor."""
+
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_device_class = SensorDeviceClass.WATER
+    _attr_native_unit_of_measurement = UnitOfVolume.LITERS
+    _attr_name = "Last Usage"
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config_entry: ConfigEntry,
+        data: ThamesWaterData,
+    ) -> None:
+        """Initialize the sensor."""
+        self._hass = hass
+        self._config_entry = config_entry
+        self._data = data
+        self._attr_unique_id = f"water_usage_{self._data._meter_id}"
+        self._attr_should_poll = False
+        self._data.register_entity(self)
+
+    @property
+    def state(self) -> float | None:
+        """Return the sensor state (latest hourly consumption in Liters)."""
+        return self._data._values.usage
+
+
+class ThamesWaterMeterReadSensor(ThamesWaterEntity, SensorEntity):
+    """Sensor exposing the latest raw meter read returned by Thames Water."""
+
+    _attr_name = "Last Read"
+
+    def __init__(self, config_entry: ConfigEntry, data: ThamesWaterData) -> None:
+        """Initialize the meter read sensor."""
+        self._config_entry = config_entry
+        self._data = data
+        self._attr_unique_id = f"meter_read_{self._data._meter_id}"
+        self._attr_should_poll = False
+        self._data.register_entity(self)
+
+    @property
+    def state(self) -> float | None:
+        """Return the latest meter read."""
+        return self._data._values.meter_read
