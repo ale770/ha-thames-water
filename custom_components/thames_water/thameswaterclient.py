@@ -30,13 +30,13 @@ class MeterUsage:
     TargetUsage: float
     AverageUsage: float
     ActualUsage: float
-    MyUsage: str  # so far have only seen 'NA'
+    MyUsage: Optional[str]  # so far have only seen 'NA'
     AverageUsagePerPerson: float
     IsMO365Customer: bool
     IsMOPartialCustomer: bool
     IsMOCompleteCustomer: bool
     IsExtraMonthConsumptionMessage: bool
-    Lines: list[Line] = field(default_factory=list)
+    Lines: list[Line] | None = None
     AlertsValues: Optional[dict] = field(
         default_factory=dict
     )  # assumption that it could be a dict
@@ -291,9 +291,17 @@ class ThamesWater:
             r.raise_for_status()
 
             data = r.json()
-            data["Lines"] = [Line(**line) for line in data["Lines"]]
+            raw_lines = data.get("Lines")
+            if raw_lines is None:
+                data["Lines"] = None
+            else:
+                data["Lines"] = [Line(**line) for line in raw_lines]
             result = MeterUsage(**data)
-            _LOGGER.info("Retrieved %d readings for meter %s", len(result.Lines), meter)
+            _LOGGER.info(
+                "Retrieved %d readings for meter %s",
+                len(result.Lines or []),
+                meter,
+            )
             return result
         except requests.RequestException as e:
             _LOGGER.error("Failed to get meter usage: %s", e)

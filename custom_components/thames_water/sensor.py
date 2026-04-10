@@ -330,13 +330,30 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                 )
                 break
 
-            if (
-                data is None
-                or data.Lines is None
-                or data.IsDataAvailable is False
-                or data.IsError
-            ):
+            if data is None:
+                _LOGGER.warning(
+                    "Skipping %s/%s/%s because no response payload was returned",
+                    day,
+                    month,
+                    year,
+                )
                 break
+            if data.IsError:
+                _LOGGER.warning(
+                    "Skipping %s/%s/%s because Thames Water reported an error payload",
+                    day,
+                    month,
+                    year,
+                )
+                continue
+            if data.IsDataAvailable is False or data.Lines is None:
+                _LOGGER.warning(
+                    "Skipping %s/%s/%s because Thames Water reported no data",
+                    day,
+                    month,
+                    year,
+                )
+                continue
 
             # Process the returned data; expect a "Lines" list.
             lines = data.Lines
