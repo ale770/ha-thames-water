@@ -448,6 +448,9 @@ class ThamesWaterData:
         else:
             initial_cost_cumulative = 0.0
 
+        if latest_meter_read is not None:
+            self._values.meter_read = latest_meter_read
+
         if len(readings) == 0:
             _LOGGER.warning("No new readings available")
             return
@@ -463,9 +466,6 @@ class ThamesWaterData:
         )
         if latest_usage > 0:
             self._values.usage = latest_usage
-        if latest_meter_read is not None:
-            self._values.meter_read = latest_meter_read
-
         # Build per-hour statistics from each reading.
         metadata_consumption = StatisticMetaData(
             has_mean=False,
@@ -501,7 +501,7 @@ class ThamesWaterUsageSensor(ThamesWaterEntity, SensorEntity):
     _attr_state_class = SensorStateClass.TOTAL
     _attr_device_class = SensorDeviceClass.WATER
     _attr_native_unit_of_measurement = UnitOfVolume.LITERS
-    _attr_name = "Last Usage"
+    _attr_name = "Latest Daily Usage"
 
     def __init__(
         self,
@@ -526,7 +526,7 @@ class ThamesWaterUsageSensor(ThamesWaterEntity, SensorEntity):
 class ThamesWaterMeterReadSensor(ThamesWaterEntity, SensorEntity):
     """Sensor exposing the latest raw meter read returned by Thames Water."""
 
-    _attr_name = "Last Read"
+    _attr_name = "Latest Meter Reading"
 
     def __init__(self, config_entry: ConfigEntry, data: ThamesWaterData) -> None:
         """Initialize the meter read sensor."""
