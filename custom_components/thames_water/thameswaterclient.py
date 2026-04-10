@@ -36,7 +36,7 @@ class MeterUsage:
     IsMOPartialCustomer: bool
     IsMOCompleteCustomer: bool
     IsExtraMonthConsumptionMessage: bool
-    Lines: list[Line] | None = field(default_factory=list)
+    Lines: list[Line] | None = None
     AlertsValues: Optional[dict] = field(
         default_factory=dict
     )  # assumption that it could be a dict
