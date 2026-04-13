@@ -282,6 +282,10 @@ class ThamesWaterCoordinator(DataUpdateCoordinator[ThamesWaterData]):
 
         _LOGGER.info("Fetched %d historical hourly entries", len(readings))
 
+        # Capture the actual newest datapoint timestamp before the readings list is
+        # filtered down to only new entries below.
+        last_raw_dt = readings[-1]["dt"] if readings else None
+
         # --- Determine cumulative starting points ---
         liter_cost = float(
             self.config_entry.options.get(
@@ -303,10 +307,8 @@ class ThamesWaterCoordinator(DataUpdateCoordinator[ThamesWaterData]):
         )
 
         last_data_time = (
-            dt_util.as_local(
-                datetime.datetime.combine(latest_day_data.date, datetime.time(23, 0))
-            )
-            if latest_day_data
+            dt_util.as_local(last_raw_dt)
+            if last_raw_dt
             else dt_util.now()
         )
 
