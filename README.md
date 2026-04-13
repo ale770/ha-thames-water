@@ -43,6 +43,15 @@ Then, add the integration:
   Visit the <i>Integrations</i> section in Home Assistant and click the <i>Add</i> button in the bottom right corner. Search for <code>Thames Water</code> and input your details. <b>You may need to clear your browser cache before the integration appears in the list.</b>
 </details>
 
+## Sensors
+
+| Sensor | Description |
+|---|---|
+| **Total Reading** | Cumulative meter reading (latest value from the meter) |
+| **Daily Usage** | Total water consumption for the latest available day |
+| **Min Daily Flow** | Minimum hourly usage for the latest day — useful for detecting leaks |
+| **Last Data Date** | Timestamp of the most recent data point received from Thames Water |
+
 ## Energy Management
 
 The water statistics can be integrated into HA [Home Energy Management](https://www.home-assistant.io/docs/energy/) using **thames_water:thameswater_consumption**.
