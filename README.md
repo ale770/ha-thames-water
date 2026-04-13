@@ -56,5 +56,3 @@ You can set at what time it will try and fetch new data using the fetch_data par
 [![Open your Home Assistant instance and show your Energy configuration panel.](https://my.home-assistant.io/badges/config_energy.svg)](https://my.home-assistant.io/redirect/config_energy/)
 
 ![Dashboard](./dashboard.png)
-
-

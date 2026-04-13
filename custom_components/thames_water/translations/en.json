@@ -59,6 +59,22 @@
       "invalid_no_data_before": "Invalid date format. Use YYYY-MM-DD (e.g. 2026-03-10)."
     }
   },
+  "entity": {
+    "sensor": {
+      "meter_reading": {
+        "name": "Total Reading"
+      },
+      "water_usage": {
+        "name": "Daily Usage"
+      },
+      "min_daily_flow": {
+        "name": "Min Daily Flow"
+      },
+      "last_data_date": {
+        "name": "Last Data Date"
+      }
+    }
+  },
   "options": {
     "step": {
       "init": {
