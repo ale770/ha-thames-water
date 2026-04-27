@@ -64,8 +64,8 @@ def _process_day_lines(
 
     for line in lines:
         time_str = line.Label
-        usage = line.Usage
-        last_read = line.Read
+        usage = line.Usage    # Hourly Consumption
+        last_read = line.Read # Total Meter Odometer Value
 
         t = dt_util.parse_time(time_str)
         if t is None:
@@ -83,7 +83,7 @@ def _process_day_lines(
 
     return last_read, DayData(
         date=day_dt.date(),
-        total_usage=total_usage,
+        total_usage=total_usage, # Daily Consumption
         min_usage=min_usage,
         last_read=last_read,
     )
@@ -123,7 +123,7 @@ class ThamesWaterCoordinator(DataUpdateCoordinator[ThamesWaterData]):
             config_entry=config_entry,
             update_interval=None,  # Updates are triggered manually at scheduled hours.
         )
-        self._tw_client: ThamesWater | None = None
+
     async def _async_update_data(self) -> ThamesWaterData:
         """Fetch data, compute aggregates, and inject external statistics."""
         consumption_stat_id = f"{DOMAIN}:thameswater_consumption"
@@ -185,24 +185,23 @@ class ThamesWaterCoordinator(DataUpdateCoordinator[ThamesWaterData]):
             elif current_date < no_data_before:
                 current_date = no_data_before
 
-        # --- Authenticate (reuse cached client; re-create only if not yet initialised) ---
+        # --- Authenticate ---
         config = self.config_entry.data
-        if self._tw_client is None:
-            try:
-                _LOGGER.debug("Creating Thames Water client")
-                async with asyncio.timeout(120):
-                    self._tw_client = await self.hass.async_add_executor_job(
-                        ThamesWater,
-                        config["username"],
-                        config["password"],
-                        config["account_number"],
-                    )
-            except TimeoutError as err:
-                raise UpdateFailed("Timeout creating Thames Water client") from err
-            except asyncio.CancelledError:
-                raise
-            except Exception as err:
-                raise UpdateFailed(f"Error creating Thames Water client: {err}") from err
+        try:
+            _LOGGER.debug("Creating Thames Water client")
+            async with asyncio.timeout(120):
+                tw_client = await self.hass.async_add_executor_job(
+                    ThamesWater,
+                    config["username"],
+                    config["password"],
+                    config["account_number"],
+                )
+        except TimeoutError as err:
+            raise UpdateFailed("Timeout creating Thames Water client") from err
+        except asyncio.CancelledError:
+            raise
+        except Exception as err:
+            raise UpdateFailed(f"Error creating Thames Water client: {err}") from err
 
         # --- Fetch daily data ---
         readings: list[dict] = []
@@ -222,7 +221,7 @@ class ThamesWaterCoordinator(DataUpdateCoordinator[ThamesWaterData]):
             try:
                 async with asyncio.timeout(30):
                     data = await self.hass.async_add_executor_job(
-                        self._tw_client.get_meter_usage,
+                        tw_client.get_meter_usage,
                         meter_id,
                         d,
                         d,
@@ -236,7 +235,6 @@ class ThamesWaterCoordinator(DataUpdateCoordinator[ThamesWaterData]):
                 _LOGGER.warning(
                     "Could not get data for %s/%s/%s: %s", day, month, year, err
                 )
-                self._tw_client = None  # Force re-authentication on next poll.
                 break
 
             if data is None:

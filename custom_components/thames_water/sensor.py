@@ -43,7 +43,6 @@ SENSOR_DESCRIPTIONS: tuple[ThamesWaterSensorEntityDescription, ...] = (
         translation_key="water_usage",
         native_unit_of_measurement=UnitOfVolume.LITERS,
         device_class=SensorDeviceClass.WATER,
-        state_class=SensorStateClass.TOTAL,
         suggested_display_precision=0,
         value_fn=lambda data: data.latest_day.total_usage if data.latest_day else None,
     ),
@@ -52,7 +51,6 @@ SENSOR_DESCRIPTIONS: tuple[ThamesWaterSensorEntityDescription, ...] = (
         translation_key="min_daily_flow",
         native_unit_of_measurement=UnitOfVolume.LITERS,
         device_class=SensorDeviceClass.WATER,
-        state_class=SensorStateClass.TOTAL,
         suggested_display_precision=0,
         value_fn=lambda data: data.latest_day.min_usage if data.latest_day else None,
     ),
@@ -144,7 +142,7 @@ class ThamesWaterSensor(
         """Return the latest cumulative meter reading in litres."""
         if self.coordinator.data is None:
             return None
-        return self.coordinator.data.latest_reading or None
+        return self.coordinator.data.latest_reading
 
 
 class ThamesWaterCoordinatorSensor(
