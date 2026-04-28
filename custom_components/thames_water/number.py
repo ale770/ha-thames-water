@@ -42,7 +42,7 @@ class ThamesWaterLiterCost(ThamesWaterEntity, NumberEntity):
     _attr_native_unit_of_measurement = "GBP/L"
     _attr_native_max_value = 1.0
     _attr_native_min_value = 0.00005
-    _attr_native_step = 0.00005
+    _attr_native_step = 0.0000001
     _attr_icon = "mdi:currency-gbp"
     _attr_mode = NumberMode.BOX
 
