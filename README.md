@@ -10,7 +10,6 @@ This Home Assistant integration retrieves water consumption data from Thames Wat
 
 You need a **Thames Water Smart Meter**. The water consumption data provided by this integration is delayed by approximately three days or more. This delay is a characteristic of the Thames Water data system and cannot be altered in this integration.
 
-The integration uses [ThamesWaterClient](https://github.com/AyrtonB/Thames-Water) python library to handle the authentication and getting the latest usage data.
 
 
 ## Installation
@@ -65,3 +64,15 @@ You can set at what time it will try and fetch new data using the fetch_data par
 [![Open your Home Assistant instance and show your Energy configuration panel.](https://my.home-assistant.io/badges/config_energy.svg)](https://my.home-assistant.io/redirect/config_energy/)
 
 ![Dashboard](./dashboard.png)
+
+## Running tests
+
+Use Python 3.11 or newer in a virtual environment with `requests` installed:
+
+```sh
+python -m unittest discover -s tests -v
+```
+
+The tests use synthetic API responses and mock Home Assistant and the recorder.
+Refresh tests run client calls in real worker threads. They do not contact Thames
+Water or verify Home Assistant setup, timezone conversion, or database writes.
