@@ -1,5 +1,5 @@
 import base64
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 import datetime
 import hashlib
 import logging
@@ -291,12 +291,21 @@ class ThamesWater:
             r.raise_for_status()
 
             data = r.json()
+            # The API may add fields that this integration does not consume.
+            # Filter extras while leaving required fields enforced by the dataclasses.
+            line_fields = {item.name for item in fields(Line)}
+            usage_fields = {item.name for item in fields(MeterUsage)}
             raw_lines = data.get("Lines")
             if raw_lines is None:
                 data["Lines"] = None
             else:
-                data["Lines"] = [Line(**line) for line in raw_lines]
-            result = MeterUsage(**data)
+                data["Lines"] = [
+                    Line(**{key: value for key, value in line.items() if key in line_fields})
+                    for line in raw_lines
+                ]
+            result = MeterUsage(
+                **{key: value for key, value in data.items() if key in usage_fields}
+            )
             _LOGGER.info(
                 "Retrieved %d readings for meter %s",
                 len(result.Lines or []),
